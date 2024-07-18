@@ -11,6 +11,8 @@ from IPython.display import display, clear_output
 from matplotlib import colormaps
 import time
 
+#hurting her someone like her
+
 ncx = None
 variable_only_data = None
 selectedColours = None
