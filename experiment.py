@@ -1,3 +1,4 @@
+import sys
 import matplotlib
 matplotlib.use('TkAgg')  #prevents matplot from interfering with image generation and display
 import xarray as xr
@@ -15,7 +16,16 @@ import platform
 import sys
 import glob
 from PIL import Image
+import scipy.stats as stats
+import matplotlib.colors as mcolors
 
+
+#create the base window for the UI
+root = tk.Tk()
+root.title("Plotting Tool")
+root.resizable(True, True)
+
+#Initialise variables
 variable_only_data = None
 selectedColours = None
 variable_data = None
@@ -25,16 +35,12 @@ selected_variable = None
 selected_timestep = None
 thickness_data = None
 
-root = tk.Tk()
-root.title("Plotting Tool")
-root.resizable(True, True)
-        
 timestep_mode = tk.IntVar(value=1)
 single_timestep_entry = tk.Entry(root)
 start_timestep_entry = tk.Entry(root)
 end_timestep_entry = tk.Entry(root)
-
 apply_mask = tk.BooleanVar()
+apply_topography = tk.BooleanVar()
 
 negis_lats = pd.read_csv("latbook.csv", header = None)
 negis_lons = pd.read_csv("lonbook.csv", header = None)
@@ -48,12 +54,20 @@ selected_lon_variable = None
 lat_data = None
 lon_data = None
 
-def print_pink(text): #define function for printing output text in pink
+latitudes = [0, 0]
+longitudes = [0, 0]
+
+#define function for printing output text in pink
+def print_pink(text):
     pink_colour_code = '\033[95m' 
     reset_colour_code = '\033[0m'
     print(f"{pink_colour_code}{text}{reset_colour_code}")
     
-#define how to open images on each OS
+def on_close():
+    root.destroy()  
+    sys.exit()  
+    
+#define how to open images on each OS for displaying the plotted output
 def open_image(file_path):
     if platform.system() == "Windows":
         os.startfile(file_path)
@@ -64,7 +78,11 @@ def open_image(file_path):
     else:
         raise RuntimeError("Unsupported operating system")
 
-#THIS IS THE COMMAND FOR THE LOAD FILE BUTTON
+
+
+
+##LOAD FILE BUTTON##
+#command for the load file button
 def load_file():
     global thickness_data, file_path
     file_path = filedialog.askopenfilename(
@@ -76,13 +94,26 @@ def load_file():
             global ncx
             ncx = xr.open_dataset(file_path)
             thickness_data = ncx['thickness']
-            #then get the variables from the selected file
+            #then get the variables from the selected file by calling update_variable_dropdown
             update_variable_dropdown()
             print_pink(f'File loaded successfully.')
             update_loaded_file()
         except Exception as e:
             print_pink(f'An error occured: {e}')
             
+#add a dropdown menu to select variables, based upon the file loaded
+def update_variable_dropdown():
+    if ncx:
+        #exclude variables 'x', 'y', and 'sfc' as these will not be relevant for plotting
+        variables = [var for var in ncx.variables if var not in ['x', 'y', 'sfc', 'crs']]
+        variable_dropdown['values'] = variables
+        mask_variable_dropdown['values'] = variables
+        topography_variable_dropdown['values'] = variables
+            
+
+
+
+##LATITUDE/LONGITUDE UPLOAD BOX##
 #initialises the popup box for the flowchart of latitude/longitude selection
 def initalise_latitude_popup():
     global step
@@ -108,8 +139,9 @@ def next():
         top.destroy()
         latitude_button.config(state=tk.NORMAL)
         selected_latitude_label.config(text="Lat/Lon Uploaded.", fg="#32CD32")
-        print_pink(lat_data)
-        print_pink(lon_data)
+        print_pink(lat_data.shape)
+        print_pink(lon_data.shape)
+        find_lat_lon_scale()
     elif step == 1:
         manual_variable_select()
     elif step == 2: 
@@ -259,7 +291,7 @@ def load_lon_file():
     longitude_found = True
     
     if lon_data is not None:
-        loaded_lon_label.config(text=f"Latitude File: {lon_file_path}", fg="#32CD32")
+        loaded_lon_label.config(text=f"Longitude File: {lon_file_path}", fg="#32CD32")
         
 def manual_scale_entry(): #STEP 3
     global min_lat_entry, max_lat_entry, min_lon_entry, max_lon_entry
@@ -320,17 +352,40 @@ def confirm_manual_scale():
     lon_data = [min_lon, max_lon]
     
     next() #call next function to check latitude_found and longitude_found again
-    
-#add a dropdown menu to select variables, based upon the file loaded
-def update_variable_dropdown():
-    if ncx:
-        #exclude variables 'x', 'y', and 'sfc' as these will not be relevant for plotting
-        variables = [var for var in ncx.variables if var not in ['x', 'y', 'sfc', 'crs']]
-        variable_dropdown['values'] = variables
-        mask_variable_dropdown['values'] = variables
 
+
+
+#ASSIGN COLLECTED LATITUDE/LONGITUDE DATA AND PROCESS IT INTO AN ACTUAL SCALE
+#this data will be inputted into generate_plot function to find scale based on netcdf file dimensions
+def find_lat_lon_scale():
+    global lat_data, lon_data
+    
+    if isinstance(lat_data, pd.DataFrame):
+        lat_data = lat_data.values.flatten()
+        print_pink(lat_data.shape)
+        
+    if isinstance(lon_data, pd.DataFrame):
+        lon_data = lon_data.values.flatten()
+        print_pink(lon_data.shape)
+        
+    latitudes[0] = min(lat_data)
+    latitudes[1] = max(lat_data)
+    print(latitudes)
+    
+    longitudes[0] = min(lon_data)
+    longitudes[1] = max(lon_data)
+    print(longitudes)
+    
+
+
+
+
+
+#VARIABLE DROPDOWNS#
 #assigns selected variable to an object, and sections the data based on selected variable
-#collects timestep number from selected variable 
+#collects timestep number from selected variable
+
+#Dropdown for variable to be plotted
 def on_variable_select(event):
     global selected_variable, sfc_size, variable_data
     selected_variable = variable_dropdown.get()
@@ -347,15 +402,33 @@ def on_variable_select(event):
 def on_mask_variable_select(event):
     global selected_mask_variable
     selected_mask_variable = mask_variable_dropdown.get()
-    
+   
+#Allows selection of a variable to be used for latitude - NEEDS SIGNIFICANT ERROR CHECKING 
 def on_lat_variable_select(event):
     global selected_lat_variable
     selected_lat_variable = manual_variable_select_combobox.get()
     
+#Allows selection of a variable to be used for longitude - NEEDS SIGNIFICANT ERROR CHECKING 
 def on_lon_variable_select(event):
     global selected_lon_variable
     selected_lon_variable = manual_variable_select_combobox_lon.get()
-
+    
+def on_topography_variable_select(event):
+    global selected_topography_variable
+    selected_topography_variable = topography_variable_dropdown.get()
+    
+#assigns selected colourmap to an object
+def update_colourmap(event):
+    global selectedColours
+    selectedColours = colourmap_dropdown.get()
+    print_pink(f"Selected colourmap: {selectedColours}")
+    
+    
+    
+    
+    
+    
+#RADIO BUTTONS AND TOGGLES - SHOW/HIDE PARTS OF UI#
 #enables and disabled the timestep options based on whether single timestep or range is selected        
 def toggle_timestep_mode():
     mode = timestep_mode.get()
@@ -378,7 +451,18 @@ def toggle_masking_mode():
         mask_variable_dropdown.config(state=tk.DISABLED)
         masking_range_start_entry.config(state=tk.DISABLED)
         masking_range_end_entry.config(state=tk.DISABLED)
+        
+def toggle_topography_dropdown():
+    if apply_topography.get():
+        topography_variable_dropdown.config(state=tk.NORMAL)
+    else:
+        topography_variable_dropdown.config(state=tk.DISABLED)
+        
+        
 
+
+
+#LABEL UPDATERS#
 #changes the label that shows the current timestep range 
 def update_timestep_range():
     if sfc_size is not None:
@@ -388,13 +472,12 @@ def update_timestep_range():
 def update_loaded_file():
     if ncx is not None:
         loaded_file_label.config(text=f"Loaded File: {file_path}", fg="#32CD32")
+        
+        
 
-#assigns selected colourmap to an object
-def update_colourmap(event):
-    global selectedColours
-    selectedColours = colourmap_dropdown.get()
-    print_pink(f"Selected colourmap: {selectedColours}")
- 
+
+
+#CONFIRM SELECTIONS BUTTON - MAINLY HERE FOR DEBUGGING PURPOSES# 
 #mostly a debugging button that shows all current selections from all the buttons       
 def confirm_selection():
     if selected_variable is not None and selectedColours is not None:
@@ -439,6 +522,11 @@ def confirm_selection():
     else:
         messagebox.showwarning("Warning", "Please make sure all selections are made.")
         
+        
+
+
+
+#GIF CREATION#        
 #procedure for collating multiple plots into an animation using pillow library       
 def create_gif():
     print_pink("Creating GIF...")
@@ -459,7 +547,12 @@ def create_gif():
             os.remove(filename)
     else:
         messagebox.showerror("Error", "No images found to create GIF.")
-
+        
+        
+        
+        
+        
+#PLOT GENERATOR
 #generates plot based on timestep and masking options
 def generate_plot():
     global selected_variable, selectedColours
@@ -468,188 +561,462 @@ def generate_plot():
     maxLat = negis_lats.max().max()
     minLon = negis_lons.min().min()
     maxLon = negis_lons.max().max()
-
-    if not apply_mask.get():
-        if timestep_mode.get() == 1:
-            if selected_variable and single_timestep_entry.get() is not None and selectedColours:
-                variable_data = ncx[selected_variable]
-                processed_data = variable_data.isel(sfc=int(single_timestep_entry.get()))
-                
-                lat_count = variable_data.sizes['y']
-                lon_count = variable_data.sizes['x']
-                latScale = np.linspace(minLat, maxLat, lat_count)
-                lonScale = np.linspace(minLon, maxLon, lon_count)
-
-                fig, ax = plt.subplots(dpi=200, figsize=(10, 10))
-                map = ax.contourf(lonScale, latScale, processed_data.values, cmap=plt.get_cmap(selectedColours))
-                cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()}')
-
-                #axis increments and labels
-                ax.xaxis.set_major_locator(MultipleLocator(2))
-                ax.yaxis.set_major_locator(MultipleLocator(1))
-                ax.set_xlabel('Longitude')
-                ax.tick_params(axis='x', labelsize=7)
-                ax.set_ylabel('Latitude')
-                ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' for timestep index: {single_timestep_entry.get()}')
-
-                #latitude gridlines and greenwich meridian
-                ax.yaxis.grid(True, linestyle='--', alpha=0.7)
-                ax.axvline(x=0, color='red', linestyle='--', linewidth=0.5)
-                
-                plt.savefig('graph.png')
-                open_image('graph.png')
+    
+    if latitudes != [0, 0] and longitudes != [0, 0]:
         
-            else:
-                messagebox.showwarning("Warning", "Please ensure that the variable, timestep, and colourmap are selected.")
-        else:
+        if not apply_topography.get():
+
+            if not apply_mask.get():
+                if timestep_mode.get() == 1:
+                    if selected_variable and single_timestep_entry.get() is not None and selectedColours:
+                        variable_data = ncx[selected_variable]
+                        processed_data = variable_data.isel(sfc=int(single_timestep_entry.get()))
+                        
+                        lat_count = variable_data.sizes['y']
+                        lon_count = variable_data.sizes['x']
+                        latScale = np.linspace(latitudes[0], latitudes[1], lat_count)
+                        lonScale = np.linspace(longitudes[0], longitudes[1], lon_count)
+
+                        fig, ax = plt.subplots(dpi=200, figsize=(10, 10))
+                        map = ax.contourf(lonScale, latScale, processed_data.values, cmap=plt.get_cmap(selectedColours))
+                        cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()}')
+
+                        #axis increments and labels
+                        ax.xaxis.set_major_locator(MultipleLocator(2))
+                        ax.yaxis.set_major_locator(MultipleLocator(1))
+                        ax.set_xlabel('Longitude')
+                        ax.tick_params(axis='x', labelsize=7)
+                        ax.set_ylabel('Latitude')
+                        ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' for timestep index: {single_timestep_entry.get()}')
+
+                        #latitude gridlines and greenwich meridian
+                        ax.yaxis.grid(True, linestyle='--', alpha=0.7)
+                        ax.axvline(x=0, color='red', linestyle='--', linewidth=0.5)
+                        
+                        print(lonScale)
+                        
+                        plt.savefig('graph.png')
+                        open_image('graph.png')
+                
+                    else:
+                        messagebox.showwarning("Warning", "Please ensure that the variable, timestep, and colourmap are selected.")
+                else:
+                    
+                    if selected_variable and start_timestep_entry.get() and end_timestep_entry.get() is not None and selectedColours:
+                        
+                        start_timestep = int(start_timestep_entry.get())
+                        end_timestep = int(end_timestep_entry.get())
+                        
+                        all_values = []
+
+                        for timestep in range(start_timestep, end_timestep + 1):
+                            flat_data = (ncx.isel(sfc=timestep)[selected_variable]).values.flatten()
+                            all_values.extend(flat_data)
+
+                        #calculate the 25th and 75th percentiles
+                        percentile_low = np.percentile(all_values, 0.005)
+                        percentile_high = np.percentile(all_values, 99.995)
+
+                        print("Lower Percentile:", percentile_low)
+                        print("Higher Percentile:", percentile_high)
+                        
+                        levels = np.linspace(percentile_low, percentile_high, 20)
+                        norm = mcolors.Normalize(vmin=percentile_low, vmax=percentile_high)
+                        
+                        for x in range(start_timestep, (end_timestep+1)):
+                            variable_data = ncx[selected_variable]
+                            processed_data = variable_data.isel(sfc=x)
+                            
+                            lat_count = variable_data.sizes['y']
+                            lon_count = variable_data.sizes['x']
+                            latScale = np.linspace(latitudes[0], latitudes[1], lat_count)
+                            lonScale = np.linspace(longitudes[0], longitudes[1], lon_count)
+                        
+                            fig, ax = plt.subplots(dpi=200, figsize=(10, 10))
+                            map = ax.contourf(lonScale, latScale, processed_data.values, cmap=plt.get_cmap(selectedColours), levels = levels, norm = norm)
+                            cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()}')
+
+                            #axis increments and labels
+                            ax.xaxis.set_major_locator(MultipleLocator(2))
+                            ax.yaxis.set_major_locator(MultipleLocator(1))
+                            ax.set_xlabel('Longitude')
+                            ax.tick_params(axis='x', labelsize=7)
+                            ax.set_ylabel('Latitude')
+                            ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' for timestep index: {x}')
+
+                            #latitude gridlines and greenwich meridian
+                            ax.yaxis.grid(True, linestyle='--', alpha=0.7)
+                            ax.axvline(x=0, color='red', linestyle='--', linewidth=0.5)
+                            
+                            #save each plot with filename corresponding to x
+                            filename = f"plots/plot_{x}.png"
+                            print_pink(f"Generated plot {x}")
+                            plt.savefig(filename)
+                            plt.close(fig) 
+                            
+                        create_gif()
+                        
+                    else: 
+                        messagebox.showwarning("Warning", "Please ensure that the variable, start and end timesteps, and colourmap are selected.")
+                        
+            if apply_mask.get():
+                
+                if timestep_mode.get() == 1:
+                    
+                    if selected_variable and single_timestep_entry.get() is not None and selectedColours:
+                        
+                        #select current timestep in the whole dataset
+                        current_timestep_data = ncx.isel(sfc=int(single_timestep_entry.get()))
+                        
+                        #select current timestep for only MASKING VARIABLE
+                        masking_variable_data = current_timestep_data[selected_mask_variable] #selected_mask_variable assigned in above function on_mask_variable_select
+                        masking_threshold_start = masking_range_start_entry.get() #retrieves threshold start from entry box
+                        masking_threshold_end = masking_range_end_entry.get() #retrieves threshold end from entry box
+                        mask1 = masking_variable_data < int(masking_threshold_start)
+                        mask2 = masking_variable_data > int(masking_threshold_end)
+                        combined_mask = mask1 | mask2
+                        
+                        #apply the mask (created above) to relevant variable in the current timestep dataset
+                        variable_data = current_timestep_data[selected_variable]
+                        masked_data = variable_data.where(combined_mask, drop = True)
+                        
+                        lat_count = masked_data.sizes['y']
+                        lon_count = masked_data.sizes['x']
+                        latScale = np.linspace(latitudes[0], latitudes[1], lat_count)
+                        lonScale = np.linspace(longitudes[0], longitudes[1], lon_count)
+                        
+                        fig, ax = plt.subplots(dpi=200, figsize=(10, 10))
+                        map = ax.contourf(lonScale, latScale, masked_data.values, cmap=plt.get_cmap(selectedColours))
+                        cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()}')
+
+                        #axis increments and labels
+                        ax.xaxis.set_major_locator(MultipleLocator(2))
+                        ax.yaxis.set_major_locator(MultipleLocator(1))
+                        ax.set_xlabel('Longitude')
+                        ax.tick_params(axis='x', labelsize=7)
+                        ax.set_ylabel('Latitude')
+                        ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' for timestep index: {single_timestep_entry.get()}')
+
+                        #latitude gridlines and greenwich meridian
+                        ax.yaxis.grid(True, linestyle='--', alpha=0.7)
+                        ax.axvline(x=0, color='red', linestyle='--', linewidth=0.5)
+                        
+                        plt.savefig('graph.png')
+                        open_image('graph.png')
+                        
+                    else:
+                        messagebox.showwarning("Warning", "Please ensure that the variable, timestep, and colourmap are selected.")
+                        
+                if timestep_mode.get() == 2:
+                    
+                    if selected_variable and single_timestep_entry.get() is not None and selectedColours:
+                        
+                        start_timestep = int(start_timestep_entry.get())
+                        end_timestep = int(end_timestep_entry.get())
+                    
+                        all_values = []
+
+                        for timestep in range(start_timestep, end_timestep + 1):
+                            flat_data = (ncx.isel(sfc=timestep)[selected_variable]).values.flatten()
+                            all_values.extend(flat_data)
+
+                        #calculate the 25th and 75th percentiles
+                        percentile_low = np.percentile(all_values, 0.005)
+                        percentile_high = np.percentile(all_values, 99.995)
+
+                        print("Lower Percentile:", percentile_low)
+                        print("Higher Percentile:", percentile_high)
+                        
+                        levels = np.linspace(percentile_low, percentile_high, 20)
+                        norm = mcolors.Normalize(vmin=percentile_low, vmax=percentile_high, clip=True)
+                            
+                        for x in range(start_timestep, (end_timestep+1)):
+                            current_timestep_data = ncx.isel(sfc=x)
+                            
+                            masking_variable_data = current_timestep_data[selected_mask_variable] #selected_mask_variable assigned in above function on_mask_variable_select
+                            masking_threshold_start = masking_range_start_entry.get() #retrieves threshold start from entry box
+                            masking_threshold_end = masking_range_end_entry.get() #retrieves threshold end from entry box
+                            mask1 = masking_variable_data < int(masking_threshold_start)
+                            mask2 = masking_variable_data > int(masking_threshold_end)
+                            combined_mask = mask1 | mask2
+                            
+                            #apply the mask (created above) to relevant variable in the current timestep dataset
+                            variable_data = current_timestep_data[selected_variable]
+                            masked_data = variable_data.where(combined_mask, drop = False)
+                            
+                            lat_count = masked_data.sizes['y']
+                            lon_count = masked_data.sizes['x']
+                            latScale = np.linspace(latitudes[0], latitudes[1], lat_count)
+                            lonScale = np.linspace(longitudes[0], longitudes[1], lon_count)
+                        
+                            fig, ax = plt.subplots(dpi=200, figsize=(10, 10))
+                            map = ax.contourf(lonScale, latScale, masked_data.values, cmap=plt.get_cmap(selectedColours), levels = levels, norm = norm)
+                            cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()}')
+
+                            #axis increments and labels
+                            ax.xaxis.set_major_locator(MultipleLocator(2))
+                            ax.yaxis.set_major_locator(MultipleLocator(1))
+                            ax.set_xlabel('Longitude')
+                            ax.tick_params(axis='x', labelsize=7)
+                            ax.set_ylabel('Latitude')
+                            ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' for timestep index: {x}')
+
+                            #latitude gridlines and greenwich meridian
+                            ax.yaxis.grid(True, linestyle='--', alpha=0.7)
+                            ax.axvline(x=0, color='red', linestyle='--', linewidth=0.5)
+                            
+                            #save each plot with filename corresponding to x
+                            filename = f"plots/plot_{x}.png"
+                            print_pink(f"Generated plot {x}")
+                            plt.savefig(filename)
+                            plt.close(fig) 
+                            
+                        create_gif()
+                        
+        if apply_topography.get():
             
-            if selected_variable and start_timestep_entry.get() and end_timestep_entry.get() is not None and selectedColours:
-                
-                start_timestep = int(start_timestep_entry.get())
-                end_timestep = int(end_timestep_entry.get())
-                
-                for x in range(start_timestep, (end_timestep+1)):
-                    variable_data = ncx[selected_variable]
-                    processed_data = variable_data.isel(sfc=x)
+            if not apply_mask.get():
+                            
+                if timestep_mode.get() == 1:
                     
-                    lat_count = variable_data.sizes['y']
-                    lon_count = variable_data.sizes['x']
-                    latScale = np.linspace(minLat, maxLat, lat_count)
-                    lonScale = np.linspace(minLon, maxLon, lon_count)
-                
-                    fig, ax = plt.subplots(dpi=200, figsize=(10, 10))
-                    map = ax.contourf(lonScale, latScale, processed_data.values, cmap=plt.get_cmap(selectedColours))
-                    cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()}')
+                    if selected_variable and single_timestep_entry.get() is not None and selectedColours:
+                        
+                        variable_data = ncx[selected_variable]
+                        processed_data = variable_data.isel(sfc=int(single_timestep_entry.get()))
+                        
+                        lat_count = variable_data.sizes['y']
+                        lon_count = variable_data.sizes['x']
+                        latScale = np.linspace(latitudes[0], latitudes[1], lat_count)
+                        lonScale = np.linspace(longitudes[0], longitudes[1], lon_count)
+                        
+                        #TOPOGRAPHICAL VARIABLE
+                        topography_data = ncx.isel(sfc=int(single_timestep_entry.get()))[selected_topography_variable]
 
-                    #axis increments and labels
-                    ax.xaxis.set_major_locator(MultipleLocator(2))
-                    ax.yaxis.set_major_locator(MultipleLocator(1))
-                    ax.set_xlabel('Longitude')
-                    ax.tick_params(axis='x', labelsize=7)
-                    ax.set_ylabel('Latitude')
-                    ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' for timestep index: {x}')
+                        fig, ax = plt.subplots(dpi=200, figsize=(10, 10))
+                        map = ax.contourf(lonScale, latScale, processed_data.values, cmap=plt.get_cmap(selectedColours))
+                        ax.contour(lonScale, latScale, topography_data.values, cmap = 'Greys')
+                        cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()}')
 
-                    #latitude gridlines and greenwich meridian
-                    ax.yaxis.grid(True, linestyle='--', alpha=0.7)
-                    ax.axvline(x=0, color='red', linestyle='--', linewidth=0.5)
-                    
-                    #save each plot with filename corresponding to x
-                    filename = f"plots/plot_{x}.png"
-                    print_pink(f"Generated plot {x}")
-                    plt.savefig(filename)
-                    plt.close(fig) 
-                    
-                create_gif()
+                        #axis increments and labels
+                        ax.xaxis.set_major_locator(MultipleLocator(2))
+                        ax.yaxis.set_major_locator(MultipleLocator(1))
+                        ax.set_xlabel('Longitude')
+                        ax.tick_params(axis='x', labelsize=7)
+                        ax.set_ylabel('Latitude')
+                        ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' for timestep index: {single_timestep_entry.get()}')
+
+                        #latitude gridlines and greenwich meridian
+                        ax.yaxis.grid(True, linestyle='--', alpha=0.7)
+                        ax.axvline(x=0, color='red', linestyle='--', linewidth=0.5)
+                        
+                        print(lonScale)
+                        
+                        plt.savefig('graph.png')
+                        open_image('graph.png')
                 
-            else: 
-                messagebox.showwarning("Warning", "Please ensure that the variable, start and end timesteps, and colourmap are selected.")
+                    else:
+                        messagebox.showwarning("Warning", "Please ensure that the variable, timestep, and colourmap are selected.")
+                else:
+                    
+                    if selected_variable and start_timestep_entry.get() and end_timestep_entry.get() is not None and selectedColours:
+                        
+                        start_timestep = int(start_timestep_entry.get())
+                        end_timestep = int(end_timestep_entry.get())
+                        
+                        all_values = []
+
+                        for timestep in range(start_timestep, end_timestep + 1):
+                            flat_data = (ncx.isel(sfc=timestep)[selected_variable]).values.flatten()
+                            all_values.extend(flat_data)
+
+                        #calculate the 25th and 75th percentiles
+                        percentile_low = np.percentile(all_values, 0.005)
+                        percentile_high = np.percentile(all_values, 99.995)
+
+                        print("Lower Percentile:", percentile_low)
+                        print("Higher Percentile:", percentile_high)
+                        
+                        levels = np.linspace(percentile_low, percentile_high, 20)
+                        norm = mcolors.Normalize(vmin=percentile_low, vmax=percentile_high)
+                        
+                        for x in range(start_timestep, (end_timestep+1)):
+                            variable_data = ncx[selected_variable]
+                            processed_data = variable_data.isel(sfc=x)
+                            
+                            lat_count = variable_data.sizes['y']
+                            lon_count = variable_data.sizes['x']
+                            latScale = np.linspace(latitudes[0], latitudes[1], lat_count)
+                            lonScale = np.linspace(longitudes[0], longitudes[1], lon_count)
+                            
+                            #topograhical data
+                            topography_data = ncx.isel(sfc = x)[selected_topography_variable]
+                        
+                            fig, ax = plt.subplots(dpi=200, figsize=(10, 10))
+                            map = ax.contourf(lonScale, latScale, processed_data.values, cmap=plt.get_cmap(selectedColours), levels = levels, norm = norm)
+                            ax.contour(lonScale, latScale, topography_data.values, cmap = 'Greys', alpha = 0.4)
+                            cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()}')
+
+                            #axis increments and labels
+                            ax.xaxis.set_major_locator(MultipleLocator(2))
+                            ax.yaxis.set_major_locator(MultipleLocator(1))
+                            ax.set_xlabel('Longitude')
+                            ax.tick_params(axis='x', labelsize=7)
+                            ax.set_ylabel('Latitude')
+                            ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' for timestep index: {x}')
+
+                            #latitude gridlines and greenwich meridian
+                            ax.yaxis.grid(True, linestyle='--', alpha=0.7)
+                            ax.axvline(x=0, color='red', linestyle='--', linewidth=0.5)
+                            
+                            #save each plot with filename corresponding to x
+                            filename = f"plots/plot_{x}.png"
+                            print_pink(f"Generated plot {x}")
+                            plt.savefig(filename)
+                            plt.close(fig) 
+                            
+                        create_gif()
+                        
+                    else: 
+                        messagebox.showwarning("Warning", "Please ensure that the variable, start and end timesteps, and colourmap are selected.")
+                        
+            if apply_mask.get():
                 
-    if apply_mask.get():
+                if timestep_mode.get() == 1:
+                    
+                    if selected_variable and single_timestep_entry.get() is not None and selectedColours:
+                        
+                        #select current timestep in the whole dataset
+                        current_timestep_data = ncx.isel(sfc=int(single_timestep_entry.get()))
+                        
+                        #select current timestep for only MASKING VARIABLE
+                        masking_variable_data = current_timestep_data[selected_mask_variable] #selected_mask_variable assigned in above function on_mask_variable_select
+                        masking_threshold_start = masking_range_start_entry.get() #retrieves threshold start from entry box
+                        masking_threshold_end = masking_range_end_entry.get() #retrieves threshold end from entry box
+                        mask1 = masking_variable_data < int(masking_threshold_start)
+                        mask2 = masking_variable_data > int(masking_threshold_end)
+                        combined_mask = mask1 | mask2
+                        
+                        #apply the mask (created above) to relevant variable in the current timestep dataset
+                        variable_data = current_timestep_data[selected_variable]
+                        masked_data = variable_data.where(combined_mask, drop = True)
+                        
+                        lat_count = masked_data.sizes['y']
+                        lon_count = masked_data.sizes['x']
+                        latScale = np.linspace(latitudes[0], latitudes[1], lat_count)
+                        lonScale = np.linspace(longitudes[0], longitudes[1], lon_count)
+                        
+                        #topograhical data
+                        topography_data = ncx.isel(sfc = x)[selected_topography_variable]
+                        
+                        fig, ax = plt.subplots(dpi=200, figsize=(10, 10))
+                        map = ax.contourf(lonScale, latScale, masked_data.values, cmap=plt.get_cmap(selectedColours))
+                        ax.contour(lonScale, latScale, topography_data.values, cmap = 'Greys', alpha = 0.4)
+                        cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()}')
+
+                        #axis increments and labels
+                        ax.xaxis.set_major_locator(MultipleLocator(2))
+                        ax.yaxis.set_major_locator(MultipleLocator(1))
+                        ax.set_xlabel('Longitude')
+                        ax.tick_params(axis='x', labelsize=7)
+                        ax.set_ylabel('Latitude')
+                        ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' for timestep index: {single_timestep_entry.get()}')
+
+                        #latitude gridlines and greenwich meridian
+                        ax.yaxis.grid(True, linestyle='--', alpha=0.7)
+                        ax.axvline(x=0, color='red', linestyle='--', linewidth=0.5)
+                        
+                        plt.savefig('graph.png')
+                        open_image('graph.png')
+                        
+                    else:
+                        messagebox.showwarning("Warning", "Please ensure that the variable, timestep, and colourmap are selected.")
+                        
+                if timestep_mode.get() == 2:
+                    
+                    if selected_variable and single_timestep_entry.get() is not None and selectedColours:
+                        
+                        start_timestep = int(start_timestep_entry.get())
+                        end_timestep = int(end_timestep_entry.get())
+                    
+                        all_values = []
+
+                        for timestep in range(start_timestep, end_timestep + 1):
+                            flat_data = (ncx.isel(sfc=timestep)[selected_variable]).values.flatten()
+                            all_values.extend(flat_data)
+
+                        #calculate the 25th and 75th percentiles
+                        percentile_low = np.percentile(all_values, 0.005)
+                        percentile_high = np.percentile(all_values, 99.995)
+
+                        print("Lower Percentile:", percentile_low)
+                        print("Higher Percentile:", percentile_high)
+                        
+                        levels = np.linspace(percentile_low, percentile_high, 20)
+                        norm = mcolors.Normalize(vmin=percentile_low, vmax=percentile_high, clip=True)
+                            
+                        for x in range(start_timestep, (end_timestep+1)):
+                            current_timestep_data = ncx.isel(sfc=x)
+                            
+                            masking_variable_data = current_timestep_data[selected_mask_variable] #selected_mask_variable assigned in above function on_mask_variable_select
+                            masking_threshold_start = masking_range_start_entry.get() #retrieves threshold start from entry box
+                            masking_threshold_end = masking_range_end_entry.get() #retrieves threshold end from entry box
+                            mask1 = masking_variable_data < int(masking_threshold_start)
+                            mask2 = masking_variable_data > int(masking_threshold_end)
+                            combined_mask = mask1 | mask2
+                            
+                            #apply the mask (created above) to relevant variable in the current timestep dataset
+                            variable_data = current_timestep_data[selected_variable]
+                            masked_data = variable_data.where(combined_mask, drop = False)
+                            
+                            lat_count = masked_data.sizes['y']
+                            lon_count = masked_data.sizes['x']
+                            latScale = np.linspace(latitudes[0], latitudes[1], lat_count)
+                            lonScale = np.linspace(longitudes[0], longitudes[1], lon_count)
+                            
+                            #topographical data
+                            topography_data = ncx.isel(sfc = x)[selected_topography_variable]
+                        
+                            fig, ax = plt.subplots(dpi=200, figsize=(10, 10))
+                            map = ax.contourf(lonScale, latScale, masked_data.values, cmap=plt.get_cmap(selectedColours), levels = levels, norm = norm)
+                            ax.contour(lonScale, latScale, topography_data.values, cmap = 'Greys', alpha = 0.4)
+                            cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()}')
+
+                            #axis increments and labels
+                            ax.xaxis.set_major_locator(MultipleLocator(2))
+                            ax.yaxis.set_major_locator(MultipleLocator(1))
+                            ax.set_xlabel('Longitude')
+                            ax.tick_params(axis='x', labelsize=7)
+                            ax.set_ylabel('Latitude')
+                            ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' for timestep index: {x}')
+
+                            #latitude gridlines and greenwich meridian
+                            ax.yaxis.grid(True, linestyle='--', alpha=0.7)
+                            ax.axvline(x=0, color='red', linestyle='--', linewidth=0.5)
+                            
+                            #save each plot with filename corresponding to x
+                            filename = f"plots/plot_{x}.png"
+                            print_pink(f"Generated plot {x}")
+                            plt.savefig(filename)
+                            plt.close(fig) 
+                            
+                        create_gif()
+            
+            
+                    
+    else:
+        messagebox.showerror("Error", "Please upload a latitude and longitude scale.")
         
-        if timestep_mode.get() == 1:
-            
-            if selected_variable and single_timestep_entry.get() is not None and selectedColours:
-                
-                #select current timestep in the whole dataset
-                current_timestep_data = ncx.isel(sfc=int(single_timestep_entry.get()))
-                
-                #select current timestep for only MASKING VARIABLE
-                masking_variable_data = current_timestep_data[selected_mask_variable] #selected_mask_variable assigned in above function on_mask_variable_select
-                masking_threshold_start = masking_range_start_entry.get() #retrieves threshold start from entry box
-                masking_threshold_end = masking_range_end_entry.get() #retrieves threshold end from entry box
-                mask1 = masking_variable_data < int(masking_threshold_start)
-                mask2 = masking_variable_data > int(masking_threshold_end)
-                combined_mask = mask1 | mask2
-                
-                #apply the mask (created above) to relevant variable in the current timestep dataset
-                variable_data = current_timestep_data[selected_variable]
-                masked_data = variable_data.where(combined_mask, drop = True)
-                
-                lat_count = masked_data.sizes['y']
-                lon_count = masked_data.sizes['x']
-                latScale = np.linspace(minLat, maxLat, lat_count)
-                lonScale = np.linspace(minLon, maxLon, lon_count)
-                
-                fig, ax = plt.subplots(dpi=200, figsize=(10, 10))
-                map = ax.contourf(lonScale, latScale, masked_data.values, cmap=plt.get_cmap(selectedColours))
-                cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()}')
+                    
 
-                #axis increments and labels
-                ax.xaxis.set_major_locator(MultipleLocator(2))
-                ax.yaxis.set_major_locator(MultipleLocator(1))
-                ax.set_xlabel('Longitude')
-                ax.tick_params(axis='x', labelsize=7)
-                ax.set_ylabel('Latitude')
-                ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' for timestep index: {single_timestep_entry.get()}')
 
-                #latitude gridlines and greenwich meridian
-                ax.yaxis.grid(True, linestyle='--', alpha=0.7)
-                ax.axvline(x=0, color='red', linestyle='--', linewidth=0.5)
-                
-                plt.savefig('graph.png')
-                open_image('graph.png')
-                
-            else:
-                messagebox.showwarning("Warning", "Please ensure that the variable, timestep, and colourmap are selected.")
-                
-        if timestep_mode.get() == 2:
-            
-            if selected_variable and single_timestep_entry.get() is not None and selectedColours:
-                
-                start_timestep = int(start_timestep_entry.get())
-                end_timestep = int(end_timestep_entry.get())
-                
-                for x in range(start_timestep, (end_timestep+1)):
-                    current_timestep_data = ncx.isel(sfc=x)
-                    
-                    masking_variable_data = current_timestep_data[selected_mask_variable] #selected_mask_variable assigned in above function on_mask_variable_select
-                    masking_threshold_start = masking_range_start_entry.get() #retrieves threshold start from entry box
-                    masking_threshold_end = masking_range_end_entry.get() #retrieves threshold end from entry box
-                    mask1 = masking_variable_data < int(masking_threshold_start)
-                    mask2 = masking_variable_data > int(masking_threshold_end)
-                    combined_mask = mask1 | mask2
-                    
-                    #apply the mask (created above) to relevant variable in the current timestep dataset
-                    variable_data = current_timestep_data[selected_variable]
-                    masked_data = variable_data.where(combined_mask, drop = True)
-                    
-                    lat_count = masked_data.sizes['y']
-                    lon_count = masked_data.sizes['x']
-                    latScale = np.linspace(minLat, maxLat, lat_count)
-                    lonScale = np.linspace(minLon, maxLon, lon_count)
-                
-                    fig, ax = plt.subplots(dpi=200, figsize=(10, 10))
-                    map = ax.contourf(lonScale, latScale, masked_data.values, cmap=plt.get_cmap(selectedColours))
-                    cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()}')
 
-                    #axis increments and labels
-                    ax.xaxis.set_major_locator(MultipleLocator(2))
-                    ax.yaxis.set_major_locator(MultipleLocator(1))
-                    ax.set_xlabel('Longitude')
-                    ax.tick_params(axis='x', labelsize=7)
-                    ax.set_ylabel('Latitude')
-                    ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' for timestep index: {x}')
 
-                    #latitude gridlines and greenwich meridian
-                    ax.yaxis.grid(True, linestyle='--', alpha=0.7)
-                    ax.axvline(x=0, color='red', linestyle='--', linewidth=0.5)
-                    
-                    #save each plot with filename corresponding to x
-                    filename = f"plots/plot_{x}.png"
-                    print_pink(f"Generated plot {x}")
-                    plt.savefig(filename)
-                    plt.close(fig) 
-                    
-                create_gif()
-                    
-def on_close():
-    root.destroy()  
-    sys.exit()  
+#MAIN FUNCTION#
     
 def main():
     global root, variable_dropdown, mask_variable_dropdown, colourmap_dropdown, timestep_range_label_text, timestep_mode, single_timestep_entry, start_timestep_entry, end_timestep_entry
     global negis_lats, negis_lons, ncx, apply_mask, mask_frame, masking_range_start_entry, masking_range_end_entry, loaded_file_label
-    global latitude_button, selected_latitude_label
+    global latitude_button, selected_latitude_label, topography_variable_dropdown
 
     try:
         negis_lats = pd.read_csv("latbook.csv", header=None)
@@ -742,7 +1109,16 @@ def main():
         masking_range_end_entry.pack(side=tk.LEFT, pady=5)
         
         toggle_masking_mode()
-
+        
+        apply_topography_toggle = tk.Checkbutton(root, text = "Apply Topograhical Map?", variable = apply_topography, command = toggle_topography_dropdown)
+        apply_topography_toggle.pack(pady=5)
+        
+        topography_variable_dropdown = Combobox(root, state="readonly")
+        topography_variable_dropdown.pack(pady=5)
+        topography_variable_dropdown.bind("<<ComboboxSelected>>", on_topography_variable_select)
+        
+        toggle_topography_dropdown()
+        
         colourmap_label = tk.Label(root, text="Select Colourmap")
         colourmap_label.pack(pady=5)
 
