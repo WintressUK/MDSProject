@@ -42,9 +42,6 @@ end_timestep_entry = tk.Entry(root)
 apply_mask = tk.BooleanVar()
 apply_topography = tk.BooleanVar()
 
-negis_lats = pd.read_csv("latbook.csv", header = None)
-negis_lons = pd.read_csv("lonbook.csv", header = None)
-
 latitude_found = False
 longitude_found = False
 step = 0
@@ -1019,9 +1016,6 @@ def main():
     global latitude_button, selected_latitude_label, topography_variable_dropdown
 
     try:
-        negis_lats = pd.read_csv("latbook.csv", header=None)
-        negis_lons = pd.read_csv("lonbook.csv", header=None)
-
         load_button = tk.Button(root, text="Load File", command=load_file)
         load_button.pack(pady=5)
         
@@ -1109,12 +1103,18 @@ def main():
         masking_range_end_entry.pack(side=tk.LEFT, pady=5)
         
         toggle_masking_mode()
+    
+        topography_frame = tk.Frame(root)
+        topography_frame.pack(pady=5)
         
-        apply_topography_toggle = tk.Checkbutton(root, text = "Apply Topograhical Map?", variable = apply_topography, command = toggle_topography_dropdown)
+        apply_topography_toggle = tk.Checkbutton(topography_frame, text = "Apply Topograhical Map?", variable = apply_topography, command = toggle_topography_dropdown)
         apply_topography_toggle.pack(pady=5)
         
-        topography_variable_dropdown = Combobox(root, state="readonly")
-        topography_variable_dropdown.pack(pady=5)
+        topography_label = tk.Label(topography_frame, text="Topography Map:")
+        topography_label.pack(side=tk.LEFT, padx=5, pady=5)
+        
+        topography_variable_dropdown = Combobox(topography_frame, state="readonly")
+        topography_variable_dropdown.pack(side=tk.LEFT, padx=5, pady=5)
         topography_variable_dropdown.bind("<<ComboboxSelected>>", on_topography_variable_select)
         
         toggle_topography_dropdown()
