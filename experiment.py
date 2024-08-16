@@ -76,8 +76,6 @@ def open_image(file_path):
         raise RuntimeError("Unsupported operating system")
 
 
-
-
 ##LOAD FILE BUTTON##
 #command for the load file button
 def load_file():
@@ -93,7 +91,6 @@ def load_file():
             thickness_data = ncx['thickness']
             #then get the variables from the selected file by calling update_variable_dropdown
             update_variable_dropdown()
-            print_pink(f'File loaded successfully.')
             update_loaded_file()
         except Exception as e:
             print_pink(f'An error occured: {e}')
@@ -106,9 +103,9 @@ def update_variable_dropdown():
         variable_dropdown['values'] = variables
         mask_variable_dropdown['values'] = variables
         topography_variable_dropdown['values'] = variables
+    else:
+        raise RuntimeError("Unable to import file variables.")
             
-
-
 
 ##LATITUDE/LONGITUDE UPLOAD BOX##
 #initialises the popup box for the flowchart of latitude/longitude selection
@@ -134,10 +131,9 @@ def next():
     if latitude_found and longitude_found:
         print_pink("Latitude and Longitude found.")
         top.destroy()
-        latitude_button.config(state=tk.NORMAL)
+        #latitude_button.config(state=tk.NORMAL) #the upload lat/lon button stays deactivated once it has been uploaded.
+        #in order to upload a new lat/lon scale, reset button will have to be pressed.
         selected_latitude_label.config(text="Lat/Lon Uploaded.", fg="#32CD32")
-        print_pink(lat_data.shape)
-        print_pink(lon_data.shape)
         find_lat_lon_scale()
     elif step == 1:
         manual_variable_select()
@@ -153,9 +149,10 @@ def next():
 def auto_latitude_detect():
     global top, latitude_found, longitude_found
     top = tk.Toplevel(root)
-    #top.geometry("750x250")
+    top.geometry("750x300") #set constant size so window size does not change with every step
     top.title("Scale Selection")
-    top.protocol("WM_DELETE_WINDOW", on_top_window_close)
+    top.protocol("WM_DELETE_WINDOW", on_top_window_close) #sets function for controlled window closure
+    top.attributes("-topmost", True)
     
     if ncx is not None:
         global lat_data, lon_data
@@ -164,22 +161,22 @@ def auto_latitude_detect():
         auto_latitude_detect_label.pack(pady=5)
     
         for var in ncx.variables:
-            if var in ['lat', 'lats']:
-                lat_data = ncx[var]
+            if var in ['lat', 'lats', 'latitude', 'latitudes']: #state common names for lats in files
+                lat_data = ncx[var] #if latitude variable found, imports its data to lat_data object for later use
                 latitude_variable_name = var
                 latitude_found = True
                 break
             
         if lat_data == None:
-            no_latitude_label = tk.Label(top, text = "No Latitudes Autodetected.")
+            no_latitude_label = tk.Label(top, text = "No Latitudes Autodetected.") #informs user if nothing is detected
             no_latitude_label.pack(pady =5)
         elif lat_data is not None:
-            latitude_label = tk.Label(top, text=f"Latitudes Detected from Variable {latitude_variable_name}")
+            latitude_label = tk.Label(top, text=f"Latitudes Detected from Variable {latitude_variable_name}") #if successful, displays variable name
             latitude_label.pack(pady=5)
             
         for var in ncx.variables:
-            if var in ['lon', 'lons']:
-                lon_data = ncx[var]
+            if var in ['lon', 'lons', 'longitude', 'longitudes']: #state common names for lons in files
+                lon_data = ncx[var] #if longitude variable found, imports its data to lon_data object for later use
                 longitude_variable_name = var
                 longitude_found = True
                 break
@@ -195,8 +192,8 @@ def auto_latitude_detect():
         auto_next_button.pack(pady=5)
     
     else:
-        nothing_selected_label = tk.Label(top, text= "Please load a file.")
-        nothing_selected_label.pack(pady=5)
+        nothing_selected_label = tk.Label(top, text= "Please load a file.", font=(16))
+        nothing_selected_label.pack(expand=True, fill='both', pady=5)
         
 def manual_variable_select(): #STEP 1
     global manual_variable_select_combobox, manual_variable_select_combobox_lon, latitude_found, longitude_found, lat_data, lon_data
@@ -207,8 +204,8 @@ def manual_variable_select(): #STEP 1
     lat_frame = tk.Frame(top)
     lon_frame = tk.Frame(top)
     
-    lat_frame.pack(pady=5)
-    lon_frame.pack(pady=5)
+    lat_frame.pack(pady=5, fill = 'both')
+    lon_frame.pack(pady=5, fill = 'both')
     
     manual_variable_select_combobox_label = tk.Label(lat_frame, text = "Select Latitude Variable")
     manual_variable_select_combobox_label.pack(side=tk.LEFT, padx=5, pady=10)
@@ -337,17 +334,35 @@ def confirm_manual_scale():
     global latitude_found, longitude_found
     global lat_data, lon_data
     
-    min_lat = int(min_lat_entry.get())
-    max_lat = int(max_lat_entry.get())
-    min_lon = int(min_lon_entry.get())
-    max_lon = int(max_lon_entry.get())
-    
+    #error checking implemented here to prevent uploading invalid or non-numerical latitude and longitude values
+    try:
+        #take input values
+        min_lat = int(min_lat_entry.get())
+        max_lat = int(max_lat_entry.get())
+        min_lon = int(min_lon_entry.get())
+        max_lon = int(max_lon_entry.get())
+        
+    except ValueError:
+        messagebox.showinfo("Error", "Please enter valid numerical values for latitude and longitude.")
+        return
+        
+        #check lat range
+    if not (-90 <= min_lat <= 90) or not (-90 <= max_lat <= 90): #rejects invalid latitude values
+        messagebox.showinfo("Error", "Latitude must be between -90 and 90.")
+        return
+        
+        #check lon range
+    if not (-180 <= min_lon <= 180) or not (-180 <= max_lon <= 180): #rejects invalid longitude values
+        messagebox.showinfo("Error", "Longitude must be between -180 and 180.")
+        return
+        
+    #if all checks passed, update global variables
     latitude_found = True
     longitude_found = True
-    
+        
     lat_data = [min_lat, max_lat]
     lon_data = [min_lon, max_lon]
-    
+
     next() #call next function to check latitude_found and longitude_found again
 
 
@@ -546,18 +561,34 @@ def create_gif():
         messagebox.showerror("Error", "No images found to create GIF.")
         
         
+def check_input_validity():
+
+    if timestep_mode.get() == 1:
+        try: #checks whether there is a valid numerical input
+            if 0 <= int(single_timestep_entry.get()) <= sfc_size: #checks whether numerical input is in the valid range
+                generate_plot()
+            else:
+                messagebox.showerror("Error", "Entered timestep is not within timestep range. Plot cannot be generated.")
+                print("fail beaming")
+        except ValueError:
+            messagebox.showinfo("Error", "Invalid timestep input. Please enter a numerical input.")
+            
         
-        
+    
+    if timestep_mode.get() == 2: 
+        try: #checks whether there is a valid numerical input
+            if 0 <= int(start_timestep_entry.get()) <= sfc_size and 0 <= int(end_timestep_entry.get()) <= sfc_size: #checks whether numerical input is in the valid range
+                generate_plot()
+            else:
+                messagebox.showerror("Error", "Entered timesteps are not within timestep range. Plot cannot be generated.")
+        except ValueError:
+            messagebox.showinfo("Error", "Invalid timestep input. Please enter a numerical input.")
+            
         
 #PLOT GENERATOR
 #generates plot based on timestep and masking options
 def generate_plot():
     global selected_variable, selectedColours
-    
-    minLat = negis_lats.min().min()
-    maxLat = negis_lats.max().max()
-    minLon = negis_lons.min().min()
-    maxLon = negis_lons.max().max()
     
     if latitudes != [0, 0] and longitudes != [0, 0]:
         
@@ -1012,7 +1043,7 @@ def generate_plot():
     
 def main():
     global root, variable_dropdown, mask_variable_dropdown, colourmap_dropdown, timestep_range_label_text, timestep_mode, single_timestep_entry, start_timestep_entry, end_timestep_entry
-    global negis_lats, negis_lons, ncx, apply_mask, mask_frame, masking_range_start_entry, masking_range_end_entry, loaded_file_label
+    global ncx, apply_mask, mask_frame, masking_range_start_entry, masking_range_end_entry, loaded_file_label
     global latitude_button, selected_latitude_label, topography_variable_dropdown
 
     try:
@@ -1129,7 +1160,7 @@ def main():
         confirm_button = tk.Button(root, text="Confirm Selections", command=confirm_selection)
         confirm_button.pack(pady=10)
 
-        generate_plot_button = tk.Button(root, text="Generate Plot", command=generate_plot)
+        generate_plot_button = tk.Button(root, text="Generate Plot", command=check_input_validity)
         generate_plot_button.pack(pady=10)
 
         root.protocol("WM_DELETE_WINDOW", on_close)  #handle window close
