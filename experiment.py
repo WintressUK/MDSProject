@@ -88,6 +88,7 @@ def load_file():
         try:
             global ncx
             ncx = xr.open_dataset(file_path)
+            print_pink(f"Data Shape: {ncx['thickness'].shape[1]}")
             thickness_data = ncx['thickness']
             #then get the variables from the selected file by calling update_variable_dropdown
             update_variable_dropdown()
@@ -562,27 +563,33 @@ def create_gif():
         
         
 def check_input_validity():
+    
+    if selected_variable and single_timestep_entry.get() is not None and selectedColours:
 
-    if timestep_mode.get() == 1:
-        try: #checks whether there is a valid numerical input
-            if 0 <= int(single_timestep_entry.get()) <= sfc_size: #checks whether numerical input is in the valid range
-                generate_plot()
-            else:
-                messagebox.showerror("Error", "Entered timestep is not within timestep range. Plot cannot be generated.")
-                print("fail beaming")
-        except ValueError:
-            messagebox.showinfo("Error", "Invalid timestep input. Please enter a numerical input.")
+        if timestep_mode.get() == 1:
+            try: #checks whether there is a valid numerical input
+                if 0 <= int(single_timestep_entry.get()) <= sfc_size: #checks whether numerical input is in the valid range
+                    generate_plot()
+                else:
+                    messagebox.showerror("Error", "Entered timestep is not within timestep range. Plot cannot be generated.")
+                    print("fail beaming")
+            except ValueError:
+                messagebox.showinfo("Error", "Invalid timestep input. Please enter a numerical input.")
+                
             
         
+        if timestep_mode.get() == 2: 
+            try: #checks whether there is a valid numerical input
+                if 0 <= int(start_timestep_entry.get()) <= sfc_size and 0 <= int(end_timestep_entry.get()) <= sfc_size: #checks whether numerical input is in the valid range
+                    generate_plot()
+                else:
+                    messagebox.showerror("Error", "Entered timesteps are not within timestep range. Plot cannot be generated.")
+            except ValueError:
+                messagebox.showinfo("Error", "Invalid timestep input. Please enter a numerical input.")
     
-    if timestep_mode.get() == 2: 
-        try: #checks whether there is a valid numerical input
-            if 0 <= int(start_timestep_entry.get()) <= sfc_size and 0 <= int(end_timestep_entry.get()) <= sfc_size: #checks whether numerical input is in the valid range
-                generate_plot()
-            else:
-                messagebox.showerror("Error", "Entered timesteps are not within timestep range. Plot cannot be generated.")
-        except ValueError:
-            messagebox.showinfo("Error", "Invalid timestep input. Please enter a numerical input.")
+    else:
+        messagebox.showinfo("Error", "Please ensure all paramaters have been specified.")
+        
             
         
 #PLOT GENERATOR
@@ -600,8 +607,8 @@ def generate_plot():
                         variable_data = ncx[selected_variable]
                         processed_data = variable_data.isel(sfc=int(single_timestep_entry.get()))
                         
-                        lat_count = variable_data.sizes['y']
-                        lon_count = variable_data.sizes['x']
+                        lat_count = ncx[selected_variable].shape[1]
+                        lon_count = ncx[selected_variable].shape[2]
                         latScale = np.linspace(latitudes[0], latitudes[1], lat_count)
                         lonScale = np.linspace(longitudes[0], longitudes[1], lon_count)
 
@@ -655,8 +662,8 @@ def generate_plot():
                             variable_data = ncx[selected_variable]
                             processed_data = variable_data.isel(sfc=x)
                             
-                            lat_count = variable_data.sizes['y']
-                            lon_count = variable_data.sizes['x']
+                            lat_count = ncx[selected_variable].shape[1]
+                            lon_count = ncx[selected_variable].shape[2]
                             latScale = np.linspace(latitudes[0], latitudes[1], lat_count)
                             lonScale = np.linspace(longitudes[0], longitudes[1], lon_count)
                         
@@ -706,10 +713,10 @@ def generate_plot():
                         
                         #apply the mask (created above) to relevant variable in the current timestep dataset
                         variable_data = current_timestep_data[selected_variable]
-                        masked_data = variable_data.where(combined_mask, drop = True)
+                        masked_data = variable_data.where(combined_mask, drop = False)
                         
-                        lat_count = masked_data.sizes['y']
-                        lon_count = masked_data.sizes['x']
+                        lat_count = masked_data.shape[0]
+                        lon_count = masked_data.shape[1]
                         latScale = np.linspace(latitudes[0], latitudes[1], lat_count)
                         lonScale = np.linspace(longitudes[0], longitudes[1], lon_count)
                         
@@ -772,8 +779,8 @@ def generate_plot():
                             variable_data = current_timestep_data[selected_variable]
                             masked_data = variable_data.where(combined_mask, drop = False)
                             
-                            lat_count = masked_data.sizes['y']
-                            lon_count = masked_data.sizes['x']
+                            lat_count = masked_data.shape[0]
+                            lon_count = masked_data.shape[1]
                             latScale = np.linspace(latitudes[0], latitudes[1], lat_count)
                             lonScale = np.linspace(longitudes[0], longitudes[1], lon_count)
                         
@@ -812,8 +819,8 @@ def generate_plot():
                         variable_data = ncx[selected_variable]
                         processed_data = variable_data.isel(sfc=int(single_timestep_entry.get()))
                         
-                        lat_count = variable_data.sizes['y']
-                        lon_count = variable_data.sizes['x']
+                        lat_count = ncx[selected_variable].shape[1]
+                        lon_count = ncx[selected_variable].shape[2]
                         latScale = np.linspace(latitudes[0], latitudes[1], lat_count)
                         lonScale = np.linspace(longitudes[0], longitudes[1], lon_count)
                         
@@ -871,8 +878,8 @@ def generate_plot():
                             variable_data = ncx[selected_variable]
                             processed_data = variable_data.isel(sfc=x)
                             
-                            lat_count = variable_data.sizes['y']
-                            lon_count = variable_data.sizes['x']
+                            lat_count = ncx[selected_variable].shape[1]
+                            lon_count = ncx[selected_variable].shape[2]
                             latScale = np.linspace(latitudes[0], latitudes[1], lat_count)
                             lonScale = np.linspace(longitudes[0], longitudes[1], lon_count)
                             
@@ -926,15 +933,15 @@ def generate_plot():
                         
                         #apply the mask (created above) to relevant variable in the current timestep dataset
                         variable_data = current_timestep_data[selected_variable]
-                        masked_data = variable_data.where(combined_mask, drop = True)
+                        masked_data = variable_data.where(combined_mask, drop = False)
                         
-                        lat_count = masked_data.sizes['y']
-                        lon_count = masked_data.sizes['x']
+                        lat_count = masked_data.shape[0]
+                        lon_count = masked_data.shape[1]
                         latScale = np.linspace(latitudes[0], latitudes[1], lat_count)
                         lonScale = np.linspace(longitudes[0], longitudes[1], lon_count)
                         
                         #topograhical data
-                        topography_data = ncx.isel(sfc = x)[selected_topography_variable]
+                        topography_data = ncx.isel(sfc=int(single_timestep_entry.get()))[selected_topography_variable]
                         
                         fig, ax = plt.subplots(dpi=200, figsize=(10, 10))
                         map = ax.contourf(lonScale, latScale, masked_data.values, cmap=plt.get_cmap(selectedColours))
@@ -996,8 +1003,8 @@ def generate_plot():
                             variable_data = current_timestep_data[selected_variable]
                             masked_data = variable_data.where(combined_mask, drop = False)
                             
-                            lat_count = masked_data.sizes['y']
-                            lon_count = masked_data.sizes['x']
+                            lat_count = masked_data.shape[0]
+                            lon_count = masked_data.shape[1]
                             latScale = np.linspace(latitudes[0], latitudes[1], lat_count)
                             lonScale = np.linspace(longitudes[0], longitudes[1], lon_count)
                             
