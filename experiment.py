@@ -18,6 +18,8 @@ import glob
 from PIL import Image
 import scipy.stats as stats
 import matplotlib.colors as mcolors
+from ttkbootstrap import Style
+from ttkbootstrap.tooltip import ToolTip  # Import the ToolTip class
 
 
 #create the base window for the UI
@@ -150,10 +152,10 @@ def next():
 def auto_latitude_detect():
     global top, latitude_found, longitude_found
     top = tk.Toplevel(root)
-    top.geometry("750x300") #set constant size so window size does not change with every step
+    #top.geometry("750x300") #set constant size so window size does not change with every step
     top.title("Scale Selection")
     top.protocol("WM_DELETE_WINDOW", on_top_window_close) #sets function for controlled window closure
-    top.attributes("-topmost", True)
+    #top.attributes("-topmost", True)
     
     if ncx is not None:
         global lat_data, lon_data
@@ -214,6 +216,7 @@ def manual_variable_select(): #STEP 1
     manual_variable_select_combobox = Combobox(lat_frame, state="readonly", values = list(ncx.variables))
     manual_variable_select_combobox.pack(pady=10)
     manual_variable_select_combobox.bind("<<ComboboxSelected>>", on_lat_variable_select)
+    ToolTip(manual_variable_select_combobox, text="Select the variable corresponding to latitude information in the uploaded data file.")
     
     manual_variable_select_combobox_label_lon = tk.Label(lon_frame, text = "Select Longitude Variable")
     manual_variable_select_combobox_label_lon.pack(side=tk.LEFT, padx=5, pady=10)
@@ -221,6 +224,7 @@ def manual_variable_select(): #STEP 1
     manual_variable_select_combobox_lon = Combobox(lon_frame, state="readonly", values = list(ncx.variables))
     manual_variable_select_combobox_lon.pack(pady=10)
     manual_variable_select_combobox_lon.bind("<<ComboboxSelected>>", on_lon_variable_select)
+    ToolTip(manual_variable_select_combobox_lon, text="Select the variable corresponding to longitude information in the uploaded data file.")
     
     if selected_lon_variable:
         longitude_found = True
@@ -247,6 +251,7 @@ def upload_lat_lon_file(): #STEP 2
     
     lat_file_button = tk.Button(lat_frame, text="Upload File", command=load_lat_file)
     lat_file_button.pack(pady=5)
+    ToolTip(lat_file_button, text="Upload a file containing the latitude information for the plot. Format: .csv")
     
     loaded_lat_label = tk.Label(top, text = "Latitude File: None")
     loaded_lat_label.pack(pady=5)
@@ -258,6 +263,7 @@ def upload_lat_lon_file(): #STEP 2
     
     lon_file_button = tk.Button(lon_frame, text="Upload File", command=load_lon_file)
     lon_file_button.pack(pady=5)
+    ToolTip(lon_file_button, text="Upload a file containing the longitude information for the plot. Format: .csv")
     
     loaded_lon_label = tk.Label(top, text = "Longitude File: None")
     loaded_lon_label.pack(pady=5)
@@ -298,12 +304,14 @@ def manual_scale_entry(): #STEP 3
         
     min_lat_entry = tk.Entry(lat_frame)
     min_lat_entry.pack(side=tk.LEFT, padx=5)
+    ToolTip(min_lat_entry, text="Specify the minimum latitude for the plot. Accepted latitude format: -90 to 90")
     
     max_lat_label = tk.Label(lat_frame, text="Max Lat")
     max_lat_label.pack(side=tk.LEFT, padx=5)
         
     max_lat_entry = tk.Entry(lat_frame)
     max_lat_entry.pack(side=tk.LEFT, padx=5)
+    ToolTip(max_lat_entry, text="Specify the maximum latitude for the plot. Accepted latitude format: -90 to 90")
     
     lon_frame = tk.Frame(top)
     lon_frame.pack(pady=5)
@@ -313,12 +321,14 @@ def manual_scale_entry(): #STEP 3
         
     min_lon_entry = tk.Entry(lon_frame)
     min_lon_entry.pack(side=tk.LEFT, padx=5)
+    ToolTip(min_lon_entry, text="Specify the minimum longitude for the plot. Accepted latitude format: -180 to 180")
     
     max_lon_label = tk.Label(lon_frame, text="Max Lon")
     max_lon_label.pack(side=tk.LEFT, padx=5)
         
     max_lon_entry = tk.Entry(lon_frame)
     max_lon_entry.pack(side=tk.LEFT, padx=5)
+    ToolTip(max_lon_entry, text="Specify the maximum longitude for the plot. Accepted latitude format: -180 to 180")
     
     #next button (presented as quit button)
     buttons_frame = tk.Frame(top)
@@ -599,6 +609,8 @@ def generate_plot():
     
     if latitudes != [0, 0] and longitudes != [0, 0]:
         
+        unit = unit_entry.get()
+        
         if not apply_topography.get():
 
             if not apply_mask.get():
@@ -614,7 +626,7 @@ def generate_plot():
 
                         fig, ax = plt.subplots(dpi=200, figsize=(10, 10))
                         map = ax.contourf(lonScale, latScale, processed_data.values, cmap=plt.get_cmap(selectedColours))
-                        cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()}')
+                        cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()} ({unit})')
 
                         #axis increments and labels
                         ax.xaxis.set_major_locator(MultipleLocator(2))
@@ -622,7 +634,7 @@ def generate_plot():
                         ax.set_xlabel('Longitude')
                         ax.tick_params(axis='x', labelsize=7)
                         ax.set_ylabel('Latitude')
-                        ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' for timestep index: {single_timestep_entry.get()}')
+                        ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' ({unit}) for timestep index: {single_timestep_entry.get()}')
 
                         #latitude gridlines and greenwich meridian
                         ax.yaxis.grid(True, linestyle='--', alpha=0.7)
@@ -669,7 +681,7 @@ def generate_plot():
                         
                             fig, ax = plt.subplots(dpi=200, figsize=(10, 10))
                             map = ax.contourf(lonScale, latScale, processed_data.values, cmap=plt.get_cmap(selectedColours), levels = levels, norm = norm)
-                            cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()}')
+                            cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize() ({unit})}')
 
                             #axis increments and labels
                             ax.xaxis.set_major_locator(MultipleLocator(2))
@@ -677,7 +689,7 @@ def generate_plot():
                             ax.set_xlabel('Longitude')
                             ax.tick_params(axis='x', labelsize=7)
                             ax.set_ylabel('Latitude')
-                            ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' for timestep index: {x}')
+                            ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' ({unit}) for timestep index: {x}')
 
                             #latitude gridlines and greenwich meridian
                             ax.yaxis.grid(True, linestyle='--', alpha=0.7)
@@ -722,7 +734,7 @@ def generate_plot():
                         
                         fig, ax = plt.subplots(dpi=200, figsize=(10, 10))
                         map = ax.contourf(lonScale, latScale, masked_data.values, cmap=plt.get_cmap(selectedColours))
-                        cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()}')
+                        cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()} ({unit})')
 
                         #axis increments and labels
                         ax.xaxis.set_major_locator(MultipleLocator(2))
@@ -730,7 +742,7 @@ def generate_plot():
                         ax.set_xlabel('Longitude')
                         ax.tick_params(axis='x', labelsize=7)
                         ax.set_ylabel('Latitude')
-                        ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' for timestep index: {single_timestep_entry.get()}')
+                        ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' ({unit}) for timestep index: {single_timestep_entry.get()}')
 
                         #latitude gridlines and greenwich meridian
                         ax.yaxis.grid(True, linestyle='--', alpha=0.7)
@@ -786,7 +798,7 @@ def generate_plot():
                         
                             fig, ax = plt.subplots(dpi=200, figsize=(10, 10))
                             map = ax.contourf(lonScale, latScale, masked_data.values, cmap=plt.get_cmap(selectedColours), levels = levels, norm = norm)
-                            cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()}')
+                            cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()} ({unit})')
 
                             #axis increments and labels
                             ax.xaxis.set_major_locator(MultipleLocator(2))
@@ -794,7 +806,7 @@ def generate_plot():
                             ax.set_xlabel('Longitude')
                             ax.tick_params(axis='x', labelsize=7)
                             ax.set_ylabel('Latitude')
-                            ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' for timestep index: {x}')
+                            ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' ({unit}) for timestep index: {x}')
 
                             #latitude gridlines and greenwich meridian
                             ax.yaxis.grid(True, linestyle='--', alpha=0.7)
@@ -830,7 +842,7 @@ def generate_plot():
                         fig, ax = plt.subplots(dpi=200, figsize=(10, 10))
                         map = ax.contourf(lonScale, latScale, processed_data.values, cmap=plt.get_cmap(selectedColours))
                         ax.contour(lonScale, latScale, topography_data.values, cmap = 'Greys')
-                        cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()}')
+                        cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()} ({unit})')
 
                         #axis increments and labels
                         ax.xaxis.set_major_locator(MultipleLocator(2))
@@ -838,7 +850,7 @@ def generate_plot():
                         ax.set_xlabel('Longitude')
                         ax.tick_params(axis='x', labelsize=7)
                         ax.set_ylabel('Latitude')
-                        ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' for timestep index: {single_timestep_entry.get()}')
+                        ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' ({unit}) for timestep index: {single_timestep_entry.get()}')
 
                         #latitude gridlines and greenwich meridian
                         ax.yaxis.grid(True, linestyle='--', alpha=0.7)
@@ -889,7 +901,7 @@ def generate_plot():
                             fig, ax = plt.subplots(dpi=200, figsize=(10, 10))
                             map = ax.contourf(lonScale, latScale, processed_data.values, cmap=plt.get_cmap(selectedColours), levels = levels, norm = norm)
                             ax.contour(lonScale, latScale, topography_data.values, cmap = 'Greys', alpha = 0.4)
-                            cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()}')
+                            cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()} ({unit})')
 
                             #axis increments and labels
                             ax.xaxis.set_major_locator(MultipleLocator(2))
@@ -897,7 +909,7 @@ def generate_plot():
                             ax.set_xlabel('Longitude')
                             ax.tick_params(axis='x', labelsize=7)
                             ax.set_ylabel('Latitude')
-                            ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' for timestep index: {x}')
+                            ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' ({unit}) for timestep index: {x}')
 
                             #latitude gridlines and greenwich meridian
                             ax.yaxis.grid(True, linestyle='--', alpha=0.7)
@@ -946,7 +958,7 @@ def generate_plot():
                         fig, ax = plt.subplots(dpi=200, figsize=(10, 10))
                         map = ax.contourf(lonScale, latScale, masked_data.values, cmap=plt.get_cmap(selectedColours))
                         ax.contour(lonScale, latScale, topography_data.values, cmap = 'Greys', alpha = 0.4)
-                        cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()}')
+                        cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()} ({unit})')
 
                         #axis increments and labels
                         ax.xaxis.set_major_locator(MultipleLocator(2))
@@ -954,7 +966,7 @@ def generate_plot():
                         ax.set_xlabel('Longitude')
                         ax.tick_params(axis='x', labelsize=7)
                         ax.set_ylabel('Latitude')
-                        ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' for timestep index: {single_timestep_entry.get()}')
+                        ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' ({unit}) for timestep index: {single_timestep_entry.get()}')
 
                         #latitude gridlines and greenwich meridian
                         ax.yaxis.grid(True, linestyle='--', alpha=0.7)
@@ -1014,7 +1026,7 @@ def generate_plot():
                             fig, ax = plt.subplots(dpi=200, figsize=(10, 10))
                             map = ax.contourf(lonScale, latScale, masked_data.values, cmap=plt.get_cmap(selectedColours), levels = levels, norm = norm)
                             ax.contour(lonScale, latScale, topography_data.values, cmap = 'Greys', alpha = 0.4)
-                            cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()}')
+                            cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()} ({unit})')
 
                             #axis increments and labels
                             ax.xaxis.set_major_locator(MultipleLocator(2))
@@ -1022,7 +1034,7 @@ def generate_plot():
                             ax.set_xlabel('Longitude')
                             ax.tick_params(axis='x', labelsize=7)
                             ax.set_ylabel('Latitude')
-                            ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' for timestep index: {x}')
+                            ax.set_title(f'Plot of variable \'{selected_variable.capitalize()}\' ({unit}) for timestep index: {x}')
 
                             #latitude gridlines and greenwich meridian
                             ax.yaxis.grid(True, linestyle='--', alpha=0.7)
@@ -1051,17 +1063,19 @@ def generate_plot():
 def main():
     global root, variable_dropdown, mask_variable_dropdown, colourmap_dropdown, timestep_range_label_text, timestep_mode, single_timestep_entry, start_timestep_entry, end_timestep_entry
     global ncx, apply_mask, mask_frame, masking_range_start_entry, masking_range_end_entry, loaded_file_label
-    global latitude_button, selected_latitude_label, topography_variable_dropdown
+    global latitude_button, selected_latitude_label, topography_variable_dropdown, unit_entry
 
     try:
         load_button = tk.Button(root, text="Load File", command=load_file)
         load_button.pack(pady=5)
+        ToolTip(load_button, text="Click to load a data file.")
         
         loaded_file_label = tk.Label(root, text="Loaded File: None")
         loaded_file_label.pack(pady=5)
         
         latitude_button = tk.Button(root, text="Load Lat/Lon", command=initalise_latitude_popup)
         latitude_button.pack(pady=5)
+        ToolTip(latitude_button, text="Click to load latitude and longitude data.")
         
         selected_latitude_label = tk.Label(root, text="No lat/lon loaded.")
         selected_latitude_label.pack(pady=5)
@@ -1072,6 +1086,17 @@ def main():
         variable_dropdown = Combobox(root, state="readonly")
         variable_dropdown.pack(pady=5)
         variable_dropdown.bind("<<ComboboxSelected>>", on_variable_select)
+        ToolTip(variable_dropdown, text="Select variable from the data to be plotted. If dropdown is empty, please check that a file is loaded.")
+        
+        #provide entry field for manual unit entry for unit corresponding to selected plotting variable above
+        unit_frame = tk.Frame(root)
+        unit_frame.pack(pady=5)
+        
+        unit_entry_label = tk.Label(unit_frame, text="Enter Plotting Variable Unit:")
+        unit_entry_label.pack(side=tk.LEFT, padx=5)
+        
+        unit_entry = tk.Entry(unit_frame)
+        unit_entry.pack(side=tk.LEFT, padx=5)
         
         #label the radio buttons
         timestep_range_label = tk.Label(root, text="Select Single Timestep or Range:")
@@ -1092,6 +1117,7 @@ def main():
         
         single_timestep_entry = tk.Entry(single_frame)
         single_timestep_entry.pack(pady=5)
+        ToolTip(single_timestep_entry, text="Enter the single timestep frame to be displayed in the plot. Available timestep range is displayed below when a plotting variable is selected.")
         
         range_frame = tk.Frame(root)
         range_frame.pack(pady=5)
@@ -1101,12 +1127,14 @@ def main():
         
         start_timestep_entry = tk.Entry(range_frame)
         start_timestep_entry.pack(side=tk.LEFT, padx=5)
+        ToolTip(start_timestep_entry, text="Enter the timestep at which to begin the animation. Available timestep range is displayed below when a plotting variable is selected.")
         
         end_timestep_label = tk.Label(range_frame, text="End Timestep")
         end_timestep_label.pack(side=tk.LEFT, padx=5)
         
         end_timestep_entry = tk.Entry(range_frame)
         end_timestep_entry.pack(side=tk.LEFT, padx=5)
+        ToolTip(end_timestep_entry, text="Enter the timestep at which to terminate the animation. Available timestep range is displayed below when a plotting variable is selected.")
         
         timestep_range_label_text = tk.Label(root, text="Timestep Range: N/A")
         timestep_range_label_text.pack(pady=5)
@@ -1116,6 +1144,7 @@ def main():
         #add mask applying toggle
         apply_mask_toggle = tk.Checkbutton(root, text = "Apply Mask?", variable = apply_mask, command = toggle_masking_mode)
         apply_mask_toggle.pack(pady=5)
+        ToolTip(apply_mask_toggle, text="Toggles data masking on produced plot. Mask application to the plot hides data within a specified range for a selected variable found within the uploaded file.")
         
         #add frame for masking options
         mask_frame = tk.Frame(root)
@@ -1127,6 +1156,7 @@ def main():
         mask_variable_dropdown = Combobox(mask_frame, state="readonly")
         mask_variable_dropdown.pack(side=tk.LEFT, pady=5)
         mask_variable_dropdown.bind("<<ComboboxSelected>>", on_mask_variable_select) #assigns the selected variable to 'selected_mask_variable'
+        ToolTip(mask_variable_dropdown, text="Select variable relevant to the construction of the desired mask. Selection of the variable corresponding to ice thickness is suggested.")
 
         masking_range_start_label = tk.Label(mask_frame, text="Range Start:")
         masking_range_start_label.pack(side=tk.LEFT, padx=5, pady=5)
@@ -1147,6 +1177,7 @@ def main():
         
         apply_topography_toggle = tk.Checkbutton(topography_frame, text = "Apply Topograhical Map?", variable = apply_topography, command = toggle_topography_dropdown)
         apply_topography_toggle.pack(pady=5)
+        ToolTip(apply_topography_toggle, text="Toggles display of topographical map on the produced plot. Requires uploaded data to contain a variable corresponding to base topography.")
         
         topography_label = tk.Label(topography_frame, text="Topography Map:")
         topography_label.pack(side=tk.LEFT, padx=5, pady=5)
@@ -1154,6 +1185,7 @@ def main():
         topography_variable_dropdown = Combobox(topography_frame, state="readonly")
         topography_variable_dropdown.pack(side=tk.LEFT, padx=5, pady=5)
         topography_variable_dropdown.bind("<<ComboboxSelected>>", on_topography_variable_select)
+        ToolTip(topography_variable_dropdown, text="Select variable corresponding to map of base topography in the uploaded data file.")
         
         toggle_topography_dropdown()
         
@@ -1163,9 +1195,10 @@ def main():
         colourmap_dropdown = Combobox(root, state="readonly", values=list(colormaps))
         colourmap_dropdown.pack(pady=5)
         colourmap_dropdown.bind("<<ComboboxSelected>>", update_colourmap)
+        ToolTip(colourmap_dropdown, text="Select the matplotlib colourmap to be applied to the generated plot.")
 
-        confirm_button = tk.Button(root, text="Confirm Selections", command=confirm_selection)
-        confirm_button.pack(pady=10)
+        #confirm_button = tk.Button(root, text="Confirm Selections", command=confirm_selection)
+        #confirm_button.pack(pady=10)
 
         generate_plot_button = tk.Button(root, text="Generate Plot", command=check_input_validity)
         generate_plot_button.pack(pady=10)
