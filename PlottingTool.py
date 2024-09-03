@@ -681,7 +681,7 @@ def generate_plot():
                         
                             fig, ax = plt.subplots(dpi=200, figsize=(10, 10))
                             map = ax.contourf(lonScale, latScale, processed_data.values, cmap=plt.get_cmap(selectedColours), levels = levels, norm = norm)
-                            cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize() ({unit})}')
+                            cbar = plt.colorbar(map, ax=ax, label=f'{selected_variable.capitalize()} ({unit})')
 
                             #axis increments and labels
                             ax.xaxis.set_major_locator(MultipleLocator(2))
