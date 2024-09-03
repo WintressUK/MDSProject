@@ -22,5 +22,5 @@ This data is intended for basic testing of the plotting tool, and only includes 
 
 The latitudes and longitudes to be imported into the plotting tool alongside the test file can be found in the .csv files titled 'latbook' and 'lonbook'. These can be imported using the 'Upload Lat/Lon File' menu.
 
-The animations provided in this repository supplement the static images provided in the 'Results' section of the project report, and are named accordingly. 
+The animations provided in this repository supplement the static images provided in the 'Results' section of the project report, and are named according to their corresponding figure in the report.
 
