@@ -16,8 +16,9 @@ The required Python packages for the provided software tool are as follows:
 * scipy
 * ttkbootstrap
 
-This project was built using example ice sheet model output data from the BISICLES model for the North East Greenland Ice Stream region. The data used can be found within this repository in the file
+This project was built using example ice sheet model output data from the BISICLES model for the North East Greenland Ice Stream region. A small subsection of the data used can be found within this repository in the file
 'GreenlandData.nc'.
+This data is intended for basic testing of the plotting tool, and only includes one variable.
 
 The latitudes and longitudes to be imported into the plotting tool can be found in the .csv files titled 'latbook' and 'lonbook'. These can be imported using the 'Upload Lat/Lon File' menu.
 
