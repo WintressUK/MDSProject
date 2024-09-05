@@ -6,20 +6,20 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mplticker
 from matplotlib.ticker import MultipleLocator
-import pandas as pd
-from matplotlib import colormaps
-import tkinter as tk
-from tkinter import filedialog, messagebox
-from tkinter.ttk import Combobox
-import os
-import platform
-import sys
-import glob
-from PIL import Image
-import scipy.stats as stats
-import matplotlib.colors as mcolors
-from ttkbootstrap import Style
-from ttkbootstrap.tooltip import ToolTip  # Import the ToolTip class
+import pandas as pd 
+from matplotlib import colormaps #allows colours in plotting
+import tkinter as tk #import core ui module
+from tkinter import filedialog, messagebox #allows showing error messsages and file selection
+from tkinter.ttk import Combobox #allows dropdowns
+import os #info about system os
+import platform #info about system platform
+import sys #system operations
+import glob #global file search
+from PIL import Image #support for image manipulation
+import scipy.stats as stats #statistics package
+import matplotlib.colors as mcolors #allows access to colourmap names
+from ttkbootstrap import Style #adds more modern ui theme
+from ttkbootstrap.tooltip import ToolTip #used for tooltip documentation
 
 
 #create the base window for the UI
@@ -27,7 +27,7 @@ root = tk.Tk()
 root.title("Plotting Tool")
 root.resizable(True, True)
 
-#Initialise variables
+#initialise variables
 variable_only_data = None
 selectedColours = None
 variable_data = None
@@ -56,12 +56,13 @@ lon_data = None
 latitudes = [0, 0]
 longitudes = [0, 0]
 
-#define function for printing output text in pink
+#define function for printing output text in pink, used for distinctive printing of loading messages in console
 def print_pink(text):
     pink_colour_code = '\033[95m' 
     reset_colour_code = '\033[0m'
     print(f"{pink_colour_code}{text}{reset_colour_code}")
-    
+
+#formal def of protocol for closing the ui
 def on_close():
     root.destroy()  
     sys.exit()  
@@ -83,13 +84,13 @@ def open_image(file_path):
 def load_file():
     global thickness_data, file_path
     file_path = filedialog.askopenfilename(
-        filetypes=[("NetCDF Files", "*.nc")]
+        filetypes=[("NetCDF Files", "*.nc")] #select file from system
     )
     if file_path:
-        print_pink(f"Selected file: {file_path}")
+        print_pink(f"Selected file: {file_path}") #message confirming file selection
         try:
             global ncx
-            ncx = xr.open_dataset(file_path)
+            ncx = xr.open_dataset(file_path) #save selected nc file as xarray object
             print_pink(f"Data Shape: {ncx['thickness'].shape[1]}")
             thickness_data = ncx['thickness']
             #then get the variables from the selected file by calling update_variable_dropdown
@@ -117,15 +118,18 @@ def initalise_latitude_popup():
     step = 0 #reset the step whenever the latitude window opens
     latitude_button.config(state=tk.DISABLED)
     auto_latitude_detect() #initalise the process
-    
+
+#protocol for resetting contents of a ui frame
 def clear_window(window):
     for widget in window.winfo_children():
         widget.destroy()
-        
+
+#formalises closing protocol for popup windows
 def on_top_window_close():
     latitude_button.config(state=tk.NORMAL)
     top.destroy()
-    
+
+#function applied to the 'next' button in the lat/lon upload menu, cycles through 4 states until lat/lon found using counter
 def next():
     global step, latitude_found, longitude_found
     step += 1
@@ -134,8 +138,6 @@ def next():
     if latitude_found and longitude_found:
         print_pink("Latitude and Longitude found.")
         top.destroy()
-        #latitude_button.config(state=tk.NORMAL) #the upload lat/lon button stays deactivated once it has been uploaded.
-        #in order to upload a new lat/lon scale, reset button will have to be pressed.
         selected_latitude_label.config(text="Lat/Lon Uploaded.", fg="#32CD32")
         find_lat_lon_scale()
     elif step == 1:
@@ -146,16 +148,14 @@ def next():
         manual_scale_entry()
     else:
         top.destroy()
-        latitude_button.config(state=tk.NORMAL)
+        latitude_button.config(state=tk.NORMAL) #closes down the popup and resets lat/lon upload button if no lat/lon is found by the end of the process
           
 #popup box executing auto detection of lat/lon in file
 def auto_latitude_detect():
     global top, latitude_found, longitude_found
     top = tk.Toplevel(root)
-    #top.geometry("750x300") #set constant size so window size does not change with every step
     top.title("Scale Selection")
     top.protocol("WM_DELETE_WINDOW", on_top_window_close) #sets function for controlled window closure
-    #top.attributes("-topmost", True)
     
     if ncx is not None:
         global lat_data, lon_data
@@ -185,7 +185,7 @@ def auto_latitude_detect():
                 break
                 
         if lon_data == None:
-            no_longitude_label = tk.Label(top, text = "No Longitudes Autodetected.")
+            no_longitude_label = tk.Label(top, text = "No Longitudes Autodetected.") #updates labels if no latitutde or longitude is autodetected
             no_longitude_label.pack(pady =5)
         elif lon_data is not None:
             longitude_label = tk.Label(top, text=f"Longitudes Detected from Variable {longitude_variable_name}")
@@ -195,7 +195,7 @@ def auto_latitude_detect():
         auto_next_button.pack(pady=5)
     
     else:
-        nothing_selected_label = tk.Label(top, text= "Please load a file.", font=(16))
+        nothing_selected_label = tk.Label(top, text= "Please load a file.", font=(16)) #if no file is loaded, the process does not proceed
         nothing_selected_label.pack(expand=True, fill='both', pady=5)
         
 def manual_variable_select(): #STEP 1
@@ -212,7 +212,9 @@ def manual_variable_select(): #STEP 1
     
     manual_variable_select_combobox_label = tk.Label(lat_frame, text = "Select Latitude Variable")
     manual_variable_select_combobox_label.pack(side=tk.LEFT, padx=5, pady=10)
-    
+
+    #provides dropdown of all variables within the currently loaded file
+    #users select the variable they wish to use to represent latitude and longitude
     manual_variable_select_combobox = Combobox(lat_frame, state="readonly", values = list(ncx.variables))
     manual_variable_select_combobox.pack(pady=10)
     manual_variable_select_combobox.bind("<<ComboboxSelected>>", on_lat_variable_select)
@@ -248,7 +250,8 @@ def upload_lat_lon_file(): #STEP 2
     
     lat_label = tk.Label(lat_frame, text = "Select Latitude File")
     lat_label.pack(side=tk.LEFT, padx=5, pady=10)
-    
+
+    #allows the user to upload files containing lat/lon information using the buttons provided
     lat_file_button = tk.Button(lat_frame, text="Upload File", command=load_lat_file)
     lat_file_button.pack(pady=5)
     ToolTip(lat_file_button, text="Upload a file containing the latitude information for the plot. Format: .csv")
@@ -271,7 +274,8 @@ def upload_lat_lon_file(): #STEP 2
     #next button
     next_button = tk.Button(top, text="Next", command=next)
     next_button.pack(pady=5)
-      
+
+#function attached to upload buttons above - displays file explorer and allows selection for latitude file
 def load_lat_file():
     global lat_data, latitude_found
     lat_file_path = filedialog.askopenfilename(
@@ -282,7 +286,8 @@ def load_lat_file():
     
     if lat_data is not None:
         loaded_lat_label.config(text=f"Latitude File: {lat_file_path}", fg="#32CD32")
-    
+
+#function attached to upload buttons above - displays file explorer and allows selection for longitude file
 def load_lon_file():
     global lon_data, longitude_found
     lon_file_path = filedialog.askopenfilename(
@@ -293,8 +298,9 @@ def load_lon_file():
     
     if lon_data is not None:
         loaded_lon_label.config(text=f"Longitude File: {lon_file_path}", fg="#32CD32")
-        
-def manual_scale_entry(): #STEP 3
+
+#allows the user to manually enter the desired latitude/longitude scale if all other upload options fail
+def manual_scale_entry(): 
     global min_lat_entry, max_lat_entry, min_lon_entry, max_lon_entry
     lat_frame = tk.Frame(top)
     lat_frame.pack(pady=5)
@@ -339,7 +345,9 @@ def manual_scale_entry(): #STEP 3
     
     next_button = tk.Button(top, text="Quit", command=next)
     next_button.pack(side=tk.LEFT, padx=5)
-    
+
+#function to confirm the validity of the scale entered - checks if the entries are numerical and if they are between the valid ranges
+#that are specified in the tooltip (-90 to 90 and -180 to 180)
 def confirm_manual_scale():
     global min_lat, max_lat, min_lon, max_lon
     global latitude_found, longitude_found
@@ -378,7 +386,7 @@ def confirm_manual_scale():
 
 
 
-#ASSIGN COLLECTED LATITUDE/LONGITUDE DATA AND PROCESS IT INTO AN ACTUAL SCALE
+#ASSIGN COLLECTED LATITUDE/LONGITUDE DATA AND PROCESS IT INTO A USABLE SCALE
 #this data will be inputted into generate_plot function to find scale based on netcdf file dimensions
 def find_lat_lon_scale():
     global lat_data, lon_data
@@ -390,7 +398,9 @@ def find_lat_lon_scale():
     if isinstance(lon_data, pd.DataFrame):
         lon_data = lon_data.values.flatten()
         print_pink(lon_data.shape)
-        
+
+    #takes the minimum and maximum of the latitude and longitude fields uploaded, no matter the method by which they are specified
+    #uses these min/max values alongside the data shape to generate the plot later in the program
     latitudes[0] = min(lat_data)
     latitudes[1] = max(lat_data)
     print(latitudes)
@@ -408,7 +418,7 @@ def find_lat_lon_scale():
 #assigns selected variable to an object, and sections the data based on selected variable
 #collects timestep number from selected variable
 
-#Dropdown for variable to be plotted
+#dropdown for selection of main variable to be plotted
 def on_variable_select(event):
     global selected_variable, sfc_size, variable_data
     selected_variable = variable_dropdown.get()
@@ -419,19 +429,19 @@ def on_variable_select(event):
         print_pink(f"Selected variable: {selected_variable}")
     else:
         sfc_size = None
-        messagebox.showinfo("Info", "Selected variable does not have 'sfc' dimension.")
+        messagebox.showinfo("Info", "Selected variable does not have timestep dimension.")
    
 #assigns selected mask variable to an object to be used in generate_plot function     
 def on_mask_variable_select(event):
     global selected_mask_variable
     selected_mask_variable = mask_variable_dropdown.get()
    
-#Allows selection of a variable to be used for latitude - NEEDS SIGNIFICANT ERROR CHECKING 
+#allows selection of a variable to be used for latitude
 def on_lat_variable_select(event):
     global selected_lat_variable
     selected_lat_variable = manual_variable_select_combobox.get()
     
-#Allows selection of a variable to be used for longitude - NEEDS SIGNIFICANT ERROR CHECKING 
+#allows selection of a variable to be used for longitude
 def on_lon_variable_select(event):
     global selected_lon_variable
     selected_lon_variable = manual_variable_select_combobox_lon.get()
@@ -474,7 +484,8 @@ def toggle_masking_mode():
         mask_variable_dropdown.config(state=tk.DISABLED)
         masking_range_start_entry.config(state=tk.DISABLED)
         masking_range_end_entry.config(state=tk.DISABLED)
-        
+
+#performs the same function but applied to the topography map dropdown
 def toggle_topography_dropdown():
     if apply_topography.get():
         topography_variable_dropdown.config(state=tk.NORMAL)
@@ -497,56 +508,6 @@ def update_loaded_file():
         loaded_file_label.config(text=f"Loaded File: {file_path}", fg="#32CD32")
         
         
-
-
-
-#CONFIRM SELECTIONS BUTTON - MAINLY HERE FOR DEBUGGING PURPOSES# 
-#mostly a debugging button that shows all current selections from all the buttons       
-def confirm_selection():
-    if selected_variable is not None and selectedColours is not None:
-        if timestep_mode.get() == 1 and apply_mask.get():
-            selected_timestep = single_timestep_entry.get()
-            messagebox.showinfo("Selection Confirmed", 
-                f"Selected Variable: {selected_variable}\n"
-                f"Selected Timestep: {selected_timestep}\n"
-                f"Apply Mask: {apply_mask.get()}\n"
-                f"Mask Variable: {selected_mask_variable}\n"
-                f"Mask Threshold Start: {masking_range_start_entry.get()}\n"
-                f"Mask Threshold End: {masking_range_end_entry.get()}\n"
-                f"Selected Colourmap: {selectedColours}")
-        elif timestep_mode.get() == 2 and apply_mask.get():
-            start_timestep = start_timestep_entry.get()
-            end_timestep = end_timestep_entry.get()
-            messagebox.showinfo("Selection Confirmed", 
-                f"Selected Variable: {selected_variable}\n"
-                f"Start Timestep: {start_timestep}\n"
-                f"End Timestep: {end_timestep}\n"
-                f"Apply Mask: {apply_mask.get()}\n"
-                f"Mask Variable: {selected_mask_variable}\n"
-                f"Mask Threshold Start: {masking_range_start_entry.get()}\n"
-                f"Mask Threshold End: {masking_range_end_entry.get()}\n"
-                f"Selected Colourmap: {selectedColours}")
-        elif timestep_mode.get() == 1 and not apply_mask.get():
-            selected_timestep = single_timestep_entry.get()
-            messagebox.showinfo("Selection Confirmed", 
-                f"Selected Variable: {selected_variable}\n"
-                f"Selected Timestep: {selected_timestep}\n"
-                f"Apply Mask: {apply_mask.get()}\n"
-                f"Selected Colourmap: {selectedColours}")
-        elif timestep_mode.get() == 2 and not apply_mask.get():
-            start_timestep = start_timestep_entry.get()
-            end_timestep = end_timestep_entry.get()
-            messagebox.showinfo("Selection Confirmed", 
-                f"Selected Variable: {selected_variable}\n"
-                f"Start Timestep: {start_timestep}\n"
-                f"End Timestep: {end_timestep}\n"
-                f"Apply Mask: {apply_mask.get()}\n"
-                f"Selected Colourmap: {selectedColours}")
-    else:
-        messagebox.showwarning("Warning", "Please make sure all selections are made.")
-        
-        
-
 
 
 #GIF CREATION#        
@@ -604,6 +565,10 @@ def check_input_validity():
         
 #PLOT GENERATOR
 #generates plot based on timestep and masking options
+
+#this function is structured according to whether a plot (single timestep) or animation (timestep series) should be generated
+#within these categories, separate conditions are specified depending on whether the user wishes to apply a data mask or add a topographical map
+
 def generate_plot():
     global selected_variable, selectedColours
     
@@ -1059,6 +1024,7 @@ def generate_plot():
 
 
 #MAIN FUNCTION#
+#this function generates the UI and executes all of the above functions, leading to the running of the program
     
 def main():
     global root, variable_dropdown, mask_variable_dropdown, colourmap_dropdown, timestep_range_label_text, timestep_mode, single_timestep_entry, start_timestep_entry, end_timestep_entry
@@ -1066,30 +1032,30 @@ def main():
     global latitude_button, selected_latitude_label, topography_variable_dropdown, unit_entry
 
     try:
-        load_button = tk.Button(root, text="Load File", command=load_file)
+        load_button = tk.Button(root, text="Load File", command=load_file) #button to load data file
         load_button.pack(pady=5)
-        ToolTip(load_button, text="Click to load a data file.")
+        ToolTip(load_button, text="Click to load a data file.") 
         
-        loaded_file_label = tk.Label(root, text="Loaded File: None")
+        loaded_file_label = tk.Label(root, text="Loaded File: None") #label that specifies file path of the loaded file once it is updated
         loaded_file_label.pack(pady=5)
         
-        latitude_button = tk.Button(root, text="Load Lat/Lon", command=initalise_latitude_popup)
+        latitude_button = tk.Button(root, text="Load Lat/Lon", command=initalise_latitude_popup) #button to initiate process of finding latitude and longitude
         latitude_button.pack(pady=5)
         ToolTip(latitude_button, text="Click to load latitude and longitude data.")
         
-        selected_latitude_label = tk.Label(root, text="No lat/lon loaded.")
+        selected_latitude_label = tk.Label(root, text="No lat/lon loaded.") #label that updates with confirmation that lat/lon has been uploaded
         selected_latitude_label.pack(pady=5)
 
         variable_dropdown_label = tk.Label(root, text="Select Variable:")
         variable_dropdown_label.pack(pady=5)
 
-        variable_dropdown = Combobox(root, state="readonly")
+        variable_dropdown = Combobox(root, state="readonly") #plotting variable selection dropdown menu
         variable_dropdown.pack(pady=5)
         variable_dropdown.bind("<<ComboboxSelected>>", on_variable_select)
         ToolTip(variable_dropdown, text="Select variable from the data to be plotted. If dropdown is empty, please check that a file is loaded.")
         
         #provide entry field for manual unit entry for unit corresponding to selected plotting variable above
-        unit_frame = tk.Frame(root)
+        unit_frame = tk.Frame(root) 
         unit_frame.pack(pady=5)
         
         unit_entry_label = tk.Label(unit_frame, text="Enter Plotting Variable Unit:")
@@ -1098,11 +1064,12 @@ def main():
         unit_entry = tk.Entry(unit_frame)
         unit_entry.pack(side=tk.LEFT, padx=5)
         
-        #label the radio buttons
+        #label the radio buttons for selecting single timestep or timestep series (production of plot or animation)
         timestep_range_label = tk.Label(root, text="Select Single Timestep or Range:")
         timestep_range_label.pack(pady=5)
         
-        #add radio buttons in!
+        #add radio buttons for single timestep and timestep series
+        #deactivate timestep entry fields corresponding to the mode which is not selected
         timestep_mode = tk.IntVar(value=1) #define the variable that the radio buttons change
         single_timestep_radio = tk.Radiobutton(root, text = "Single Timestep", variable = timestep_mode, value = 1, command = toggle_timestep_mode)
         single_timestep_radio.pack(pady=5)
@@ -1115,7 +1082,7 @@ def main():
         single_timestep_label = tk.Label(single_frame, text="Enter Single Timestep:")
         single_timestep_label.pack(side=tk.LEFT, padx=5)
         
-        single_timestep_entry = tk.Entry(single_frame)
+        single_timestep_entry = tk.Entry(single_frame) #enter single timestep
         single_timestep_entry.pack(pady=5)
         ToolTip(single_timestep_entry, text="Enter the single timestep frame to be displayed in the plot. Available timestep range is displayed below when a plotting variable is selected.")
         
@@ -1125,14 +1092,14 @@ def main():
         start_timestep_label = tk.Label(range_frame, text="Start Timestep")
         start_timestep_label.pack(side=tk.LEFT, padx=5)
         
-        start_timestep_entry = tk.Entry(range_frame)
+        start_timestep_entry = tk.Entry(range_frame) #enter starting timestep for timestep range
         start_timestep_entry.pack(side=tk.LEFT, padx=5)
         ToolTip(start_timestep_entry, text="Enter the timestep at which to begin the animation. Available timestep range is displayed below when a plotting variable is selected.")
         
         end_timestep_label = tk.Label(range_frame, text="End Timestep")
         end_timestep_label.pack(side=tk.LEFT, padx=5)
         
-        end_timestep_entry = tk.Entry(range_frame)
+        end_timestep_entry = tk.Entry(range_frame) #enter ending timestep for timestep range
         end_timestep_entry.pack(side=tk.LEFT, padx=5)
         ToolTip(end_timestep_entry, text="Enter the timestep at which to terminate the animation. Available timestep range is displayed below when a plotting variable is selected.")
         
@@ -1153,7 +1120,7 @@ def main():
         mask_variable_dropdown_label = tk.Label(mask_frame, text="Masking Variable:")
         mask_variable_dropdown_label.pack(side=tk.LEFT, padx=5)
         
-        mask_variable_dropdown = Combobox(mask_frame, state="readonly")
+        mask_variable_dropdown = Combobox(mask_frame, state="readonly") #select variable with which to construct the data mask
         mask_variable_dropdown.pack(side=tk.LEFT, pady=5)
         mask_variable_dropdown.bind("<<ComboboxSelected>>", on_mask_variable_select) #assigns the selected variable to 'selected_mask_variable'
         ToolTip(mask_variable_dropdown, text="Select variable relevant to the construction of the desired mask. Selection of the variable corresponding to ice thickness is suggested.")
@@ -1171,7 +1138,8 @@ def main():
         masking_range_end_entry.pack(side=tk.LEFT, pady=5)
         
         toggle_masking_mode()
-    
+
+        #add options for generating topography map
         topography_frame = tk.Frame(root)
         topography_frame.pack(pady=5)
         
@@ -1182,23 +1150,21 @@ def main():
         topography_label = tk.Label(topography_frame, text="Topography Map:")
         topography_label.pack(side=tk.LEFT, padx=5, pady=5)
         
-        topography_variable_dropdown = Combobox(topography_frame, state="readonly")
+        topography_variable_dropdown = Combobox(topography_frame, state="readonly") #select variable from which to generate the topography map
         topography_variable_dropdown.pack(side=tk.LEFT, padx=5, pady=5)
         topography_variable_dropdown.bind("<<ComboboxSelected>>", on_topography_variable_select)
         ToolTip(topography_variable_dropdown, text="Select variable corresponding to map of base topography in the uploaded data file.")
         
         toggle_topography_dropdown()
-        
+
+        #options for selecting plot colourmap
         colourmap_label = tk.Label(root, text="Select Colourmap")
         colourmap_label.pack(pady=5)
 
-        colourmap_dropdown = Combobox(root, state="readonly", values=list(colormaps))
+        colourmap_dropdown = Combobox(root, state="readonly", values=list(colormaps)) #dropdown for specifying colourmap
         colourmap_dropdown.pack(pady=5)
         colourmap_dropdown.bind("<<ComboboxSelected>>", update_colourmap)
         ToolTip(colourmap_dropdown, text="Select the matplotlib colourmap to be applied to the generated plot.")
-
-        #confirm_button = tk.Button(root, text="Confirm Selections", command=confirm_selection)
-        #confirm_button.pack(pady=10)
 
         generate_plot_button = tk.Button(root, text="Generate Plot", command=check_input_validity)
         generate_plot_button.pack(pady=10)
